@@ -1,49 +1,38 @@
 import React, { Component } from "react";
 import "./App.css";
+import axios from "axios";
 
-const list = [
-  {
-    title: "React",
-    url: "https://facebook.github.io/react/",
-    author: "Jordan Walke",
-    num_comments: 3,
-    points: 4,
-    objectID: 0
-  },
-  {
-    title: "Redux",
-    url: "https://github.com/reactjs/redux",
-    author: "Dan Abramov, Andrew Clark",
-    num_comments: 2,
-    points: 5,
-    objectID: 1
-  }
-];
+const DEFAULT_QUERY = "redux";
+const DEFAULT_HPP = 100;
 
-const isSearched = searchTerm => item =>
-  item.title.toLowerCase().includes(searchTerm.toLowerCase());
+const PATH_BASE = "https://hn.algolia.com/api/v1";
+const PATH_SEARCH = "/search";
+const PARAM_SEARCH = "query=";
+const PARAM_PAGE = "page=";
+const PARAM_HPP = "hitsPerPage=";
 
-const Search = ({ searchTerm, onChange }) => (
-  <form action="">
+const Search = ({ searchTerm, onChange, onSubmit, children }) => (
+  <form onSubmit={onSubmit}>
     <input type="text" value={searchTerm} onChange={onChange} />
+    <button type="submit">{children}</button>
   </form>
 );
 
 const largeColumn = {
-  width: '40%',
+  width: "40%"
 };
 
 const midColumn = {
-  width: '30%',
+  width: "30%"
 };
 
 const smallColumn = {
-  width: '10%',
+  width: "10%"
 };
 
-const Table = ({ list, pattern, onDismiss }) => (
+const Table = ({ list, onDismiss }) => (
   <div className="table">
-    {list.filter(isSearched(pattern)).map(item => (
+    {list.map(item => (
       <div className="table-row" key={item.objectID}>
         <span style={largeColumn}>
           <a href={item.url}>{item.title}</a>
@@ -72,29 +61,85 @@ const Button = ({ onClick, className = "", children }) => (
 );
 
 class App extends Component {
+  _isMounted = false;
+
   constructor(props) {
     super(props);
-    this.state = { list, searchTerm: "" };
+    this.state = { result: null, searchTerm: DEFAULT_QUERY, error: null };
     this.onDismiss = this.onDismiss.bind(this);
     this.onSearchChange = this.onSearchChange.bind(this);
+    this.onSearchSubmit = this.onSearchSubmit.bind(this);
+    this.fetchSearchTopStories = this.fetchSearchTopStories.bind(this);
+    this.setSearchTopStories = this.setSearchTopStories.bind(this);
   }
 
   onDismiss(id) {
-    const updatedList = this.state.list.filter(item => item.objectID !== id);
-    this.setState({ list: updatedList });
+    const updatedHits = this.state.result.hits.filter(
+      item => item.objectID !== id
+    );
+    this.setState({ result: { ...this.state.result, hits: updatedHits } });
   }
 
   onSearchChange(event) {
     this.setState({ searchTerm: event.target.value });
   }
 
+  onSearchSubmit(event) {
+    event.preventDefault();
+    const { searchTerm } = this.state;
+    this.fetchSearchTopStories(searchTerm);
+  }
+
+  setSearchTopStories(result) {
+    const { hits, page } = result;
+    const oldHits = page !== 0 ? this.state.result.hits : [];
+    const updatedHits = [...oldHits, ...hits];
+    this.setState({ result: { hits: updatedHits, page } });
+  }
+
+  fetchSearchTopStories(searchTerm, page = 0) {
+    axios(
+      `${PATH_BASE}${PATH_SEARCH}?${PARAM_SEARCH}${searchTerm}&${PARAM_PAGE}${page}&${PARAM_HPP}${DEFAULT_HPP}`
+    )
+      .then(result => this._isMounted && this.setSearchTopStories(result.data))
+      .catch(error => this._isMounted && this.setState({ error }));
+  }
+
+  componentDidMount() {
+    _isMounted = true;
+    const { searchTerm } = this.state;
+    this.fetchSearchTopStories(searchTerm);
+  }
+
+  componentWillDidUnmount(){
+    _isMounted = false;
+  }
+
   render() {
-    const { list, searchTerm } = this.state;
+    const { result, searchTerm, error } = this.state;
+    const page = (result && result.page) || 0;
+
+    if (error) {
+      return <p>Something went wrong.</p>;
+    }
     return (
       <div className="page">
         <div className="interactions">
-          <Search value={searchTerm} onChange={this.onSearchChange} />
-          <Table list={list} pattern={searchTerm} onDismiss={this.onDismiss} />
+          <Search
+            value={searchTerm}
+            onChange={this.onSearchChange}
+            onSubmit={this.onSearchSubmit}
+          >
+            Search
+          </Search>
+          {result && <Table list={result.hits} onDismiss={this.onDismiss} />}
+        </div>
+        <div className="interactions">
+          <Button
+            onClick={() => this.fetchSearchTopStories(searchTerm, page + 1)}
+          >
+            More
+          </Button>
         </div>
       </div>
     );

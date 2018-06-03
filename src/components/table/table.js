@@ -23,8 +23,8 @@ const SORTS = {
   NONE: list => list,
   TITLE: list => sortBy(list, "title"),
   AUTHOR: list => sortBy(list, "author"),
-  COMMENTS: list => sortBy(list, "num_comments").reverse(),
-  POINTS: list => sortBy(list, "points").reverse()
+  COMMENTS: list => sortBy(list, "num_comments"),
+  POINTS: list => sortBy(list, "points")
 };
 
 const Sort = ({ sortKey, onSort, children, activeSortKey, isSortReverse }) => {
